@@ -45,8 +45,8 @@ data:
       min_npoint: 5000
   test:
     type: 'scannetv2'
-    data_root: 'dataset/scannetv2'
-    prefix: 'val'
+    data_root: '/mnt/g/Summer-Project/ISBNet/your_house_dataset'
+    prefix: ''
     suffix: '_inst_nostuff.pth'
     training: False
     voxel_cfg:

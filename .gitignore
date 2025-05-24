@@ -105,3 +105,5 @@ visualization/pyviz3d/
 dataset/s3dis/preprocess_notalign
 dataset/s3dis/superpoints_notalign
 dataset/s3dis/preprocess_notalign_subsample
+*.pth
+*.bin

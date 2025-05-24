@@ -289,44 +289,69 @@ COLOR_MAP = {
 
 SEMANTIC_IDX2NAME = {k: v for k, v in enumerate(CLASS_LABELS_STPLS3D)}
 
+def  get_pred_color(scene_name, pred_dir, data_root="dataset/stpls3d", split="val"):
+    """
+    Load predicted instance masks for a given scene and convert them to RGB colors.
 
-def get_pred_color(scene_name, mask_valid, dir):
-    instance_file = osp.join(dir, "pred_instance", scene_name + ".txt")
+    Args:
+        scene_name (str): Name of the scene, e.g. "5_points_GTv3_00".
+        pred_dir (str): Path to the directory containing "pred_instance" folder.
+        data_root (str): Path to dataset root containing split folder.
+        split (str): Dataset split name, e.g. "val".
 
-    f = open(instance_file, "r")
-    masks = f.readlines()
-    masks = [mask.rstrip().split() for mask in masks]
-    inst_label_pred_rgb = np.zeros((mask_valid.sum(), 3))  # np.ones(rgb.shape) * 255 #
+    Returns:
+        np.ndarray: An array of shape (num_points, 3) containing RGB colors
+                    for each valid point based on predicted instance assignments.
+    """
+    # Load ground-truth labels to determine valid points
+    pth_file = osp.join(data_root, split, scene_name + "_inst_nostuff.pth")
+    _, _, semantic_label, _ = torch.load(pth_file)
+    mask_valid = semantic_label != -100
+    num_points = int(mask_valid.sum())
 
-    # FIXME
-    ins_num = len(masks)
-    ins_pointnum = np.zeros(ins_num)
-    inst_label = -100 * np.ones(mask_valid.sum()).astype(np.int)
+    # Prepare output arrays sized to valid points
+    inst_label_pred_rgb = np.zeros((num_points, 3), dtype=np.float32)
+    ins_pointnum = np.zeros(len(os.listdir(osp.join(pred_dir, "pred_instance"))), dtype=int)
+    inst_label = -100 * np.ones(num_points, dtype=int)
 
-    # sort score such that high score has high priority for visualization
+    # Read instance predictions
+    instance_file = osp.join(pred_dir, "pred_instance", scene_name + ".txt")
+    with open(instance_file, "r") as f:
+        masks = [line.strip().split() for line in f]
+
+    # Sort instances by descending score
     scores = np.array([float(x[-1]) for x in masks])
     sort_inds = np.argsort(scores)[::-1]
-    for i_ in range(len(masks) - 1, -1, -1):
-        i = sort_inds[i_]
-        # mask_path = os.path.join(opt.prediction_path, "pred_instance", masks[i][0])
-        mask_path = osp.join(dir, "pred_instance", masks[i][0])
-        assert osp.isfile(mask_path), mask_path
-        if float(masks[i][2]) < 0.1:
+
+    for idx in sort_inds:
+        mask_filename, _, score_str = masks[idx]
+        score = float(score_str)
+        if score < 0.1:
             continue
 
-        mask = np.loadtxt(mask_path).astype(np.int)
-        mask = mask[mask_valid]
+        # Load binary mask (one value per valid point)
+        mask_path = osp.join(pred_dir, "pred_instance", mask_filename)
+        if not osp.isfile(mask_path):
+            raise FileNotFoundError(f"Mask file not found: {mask_path}")
 
-        cls = SEMANTIC_IDX2NAME[int(masks[i][1])]
+        # Load raw mask data: could be full-length 0/1 array, or a list of indices
+        raw = np.loadtxt(mask_path).astype(int)
+        if raw.shape[0] == num_points:
+            # already a binary mask per valid point
+            mask_raw = raw
+        else:
+          # raw is a list of point-indices: build a full-length binary mask
+            mask_raw = np.zeros(num_points, dtype=int)
+            mask_raw[raw] = 1
 
-        print("{} {}: {} pointnum: {}".format(i, masks[i], cls, mask.sum()))
-        ins_pointnum[i] = mask.sum()
-        inst_label[mask == 1] = i
+        ins_pointnum[idx] = mask_raw.sum()
+        inst_label[mask_raw == 1] = idx
 
-    sort_idx = np.argsort(ins_pointnum)[::-1]
-    for _sort_id in range(ins_num):
-        color = COLOR_DETECTRON2[_sort_id % len(COLOR_DETECTRON2)]
-        inst_label_pred_rgb[inst_label == sort_idx[_sort_id]] = color
+    # Color instances by size ranking
+    sorted_by_size = np.argsort(ins_pointnum)[::-1]
+    for order, inst_idx in enumerate(sorted_by_size):
+        color = COLOR_DETECTRON2[order % len(COLOR_DETECTRON2)]
+        inst_label_pred_rgb[inst_label == inst_idx] = color
 
     return inst_label_pred_rgb
 
@@ -352,7 +377,7 @@ def main():
     v = viz.Visualizer()
 
     if args.task == "all":
-        vis_tasks = ["input", "sem_gt", "inst_gt", "superpoint" "inst_pred"]
+        vis_tasks = ["input", "sem_gt", "inst_gt", "superpoint", "inst_pred"]
     else:
         vis_tasks = [args.task]
 
@@ -361,9 +386,12 @@ def main():
     )
     xyz = xyz.astype(np.float32)
     rgb = rgb.astype(np.float32)
-    semantic_label = semantic_label.astype(np.int)
-    instance_label = instance_label.astype(np.int)
 
+    #semantic_label = semantic_label.astype(np.int)
+    #instance_label = instance_label.astype(np.int)
+
+    semantic_label = semantic_label.astype(int)
+    instance_label = instance_label.astype(int)
     rgb = (rgb + 1.0) * 127.5
 
     mask_valid = semantic_label != -100
@@ -410,7 +438,12 @@ def main():
         v.add_points(f"superpoint", xyz, superpoint_rgb, point_size=args.point_size)
 
     if "inst_pred" in vis_tasks:
-        pred_rgb = get_pred_color(args.scene_name, mask_valid, args.prediction_path)
+        pred_rgb = get_pred_color(
+            args.scene_name,
+            args.prediction_path,
+            args.data_root,
+            args.split,
+        )
         v.add_points(f"inst_pred", xyz, pred_rgb, point_size=args.point_size)
 
     v.save("visualization/pyviz3d")

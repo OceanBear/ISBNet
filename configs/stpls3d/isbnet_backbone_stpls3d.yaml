@@ -11,21 +11,22 @@ model:
   voxel_scale: 3
   use_spp_pool: False
   filter_bg_thresh: 0.1
-  iterative_sampling: False
+  iterative_sampling: False # was True
   instance_head_cfg:
-    dec_dim: 64
-    n_sample_pa1: 2048
-    n_queries: 256
+    dec_dim: 32 #was 64
+    n_sample_pa1: 512  #was 2048
+    n_queries: 16  #was 256
     radius_scale: 10
     radius: 0.4
     neighbor: 16
   test_cfg:
-    x4_split: False
+    x4_split: False  # was False
+    #split_min_npoint: 10   # 如果某分块点数 <10，就跳过该块
     logit_thresh: 0.0
     score_thresh: 0.2
     npoint_thresh: 10
     type_nms: 'matrix'
-    topk: 100
+    topk: 20 #was 100
 
   fixed_modules: []
 
@@ -40,7 +41,7 @@ data:
     voxel_cfg:
       scale: 3
       spatial_shape: [128, 512]
-      max_npoint: 250000
+      max_npoint: 100000  #was 250000
       min_npoint: 5000
   test:
     type: 'stpls3d'
@@ -50,15 +51,15 @@ data:
     training: False
     voxel_cfg:
       scale: 3
-      spatial_shape: [128, 512]
-      max_npoint: 250000
+      spatial_shape: [64, 256] #was [128, 512]
+      max_npoint: 50000  #was 250000
       min_npoint: 5000
 
 
 dataloader:
   train:
-    batch_size: 32
-    num_workers: 16
+    batch_size: 8  #was 16
+    num_workers: 4
   test:
     batch_size: 1
     num_workers: 1
@@ -76,7 +77,7 @@ save_cfg:
   nmc_clusters: False
   object_conditions: False
 
-fp16: False
+fp16: True #was False
 epochs: 100
 step_epoch: 40
 save_freq: 4

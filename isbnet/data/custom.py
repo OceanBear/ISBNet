@@ -118,44 +118,102 @@ class CustomDataset(Dataset):
             j += 1
         return instance_label
 
-    def transform_train(self, xyz, rgb, semantic_label, instance_label, spp, aug_prob=1.0):
-        xyz_middle = self.dataAugment(xyz, True, True, True, aug_prob)
-        xyz = xyz_middle * self.voxel_cfg.scale
+    def transform_test(self, xyz, rgb, semantic_label, instance_label, spp):
+        # 1) 全部先转成 NumPy
+        if isinstance(xyz, torch.Tensor):
+            xyz = xyz.cpu().numpy()
+        if isinstance(rgb, torch.Tensor):
+            rgb = rgb.cpu().numpy()
+        if isinstance(semantic_label, torch.Tensor):
+            semantic_label = semantic_label.cpu().numpy()
+        if isinstance(instance_label, torch.Tensor):
+            instance_label = instance_label.cpu().numpy()
+        if isinstance(spp, torch.Tensor):
+            spp = spp.cpu().numpy()
 
-        if np.random.rand() < aug_prob:
-            xyz = self.elastic(xyz, 6, 40.0)
-            xyz = self.elastic(xyz, 20, 160.0)
+        # 2) 缩放并归一化到 0 起点
+        xyz = xyz * self.voxel_cfg.scale
+        xyz = xyz - xyz.min(axis=0)
+        # —— 新增：过滤所有 nan/inf 点，避免后续 crop 失败 ——
+        mask_valid = np.isfinite(xyz).all(axis=1)
+        xyz = xyz[mask_valid]
+        rgb = rgb[mask_valid]
+        semantic_label = semantic_label[mask_valid]
+        instance_label = instance_label[mask_valid]
+        spp = spp[mask_valid]
+        # 3) 仅当总点数 > max_npoint 时才裁剪
+        num_pts = xyz.shape[0]
+        if num_pts > self.voxel_cfg.max_npoint:
+            xyz, valid_idxs = self.crop(xyz)
+            # 如果 crop 出现全 False，也退回到不裁剪
+            if valid_idxs.sum() == 0:
+                valid_idxs = np.ones(num_pts, dtype=bool)
+        else:
+            valid_idxs = np.ones(num_pts, dtype=bool)
 
-        xyz = xyz - xyz.min(0)
-        max_tries = 5
-        while max_tries > 0:
-            xyz_offset, valid_idxs = self.crop(xyz)
-            if valid_idxs.sum() >= self.voxel_cfg.min_npoint:
-                xyz = xyz_offset
-                break
-            max_tries -= 1
-        if valid_idxs.sum() < self.voxel_cfg.min_npoint:
-            return None
+        # 4) 按 valid_idxs 筛
         xyz = xyz[valid_idxs]
-        xyz_middle = xyz_middle[valid_idxs]
         rgb = rgb[valid_idxs]
-
         semantic_label = semantic_label[valid_idxs]
-        instance_label = self.getCroppedInstLabel(instance_label, valid_idxs)
-
+        # safe crop instance_label
+        inst_lbl = instance_label[valid_idxs]
+        instance_label = self.getCroppedInstLabel(inst_lbl, np.ones_like(inst_lbl, dtype=bool))
         spp = spp[valid_idxs]
 
-        return xyz, xyz_middle, rgb, semantic_label, instance_label, spp
-
-    def transform_test(self, xyz, rgb, semantic_label, instance_label, spp):
-        xyz_middle = self.dataAugment(xyz, False, False, False)
-        xyz = xyz_middle * self.voxel_cfg.scale
-        xyz -= xyz.min(0)
-        valid_idxs = np.ones(xyz.shape[0], dtype=bool)
-
-        instance_label = self.getCroppedInstLabel(instance_label, valid_idxs)
+        # 5) xyz_middle 这里直接等于裁剪后的 xyz
+        xyz_middle = xyz.copy()
 
         return xyz, xyz_middle, rgb, semantic_label, instance_label, spp
+
+    def transform_train(self, xyz, rgb, semantic_label, instance_label, spp, aug_prob=1.0):
+        # 1) Tensor→NumPy
+        if isinstance(xyz, torch.Tensor):
+            xyz = xyz.cpu().numpy()
+        if isinstance(rgb, torch.Tensor):
+            rgb = rgb.cpu().numpy()
+        if isinstance(semantic_label, torch.Tensor):
+            semantic_label = semantic_label.cpu().numpy()
+        if isinstance(instance_label, torch.Tensor):
+            instance_label = instance_label.cpu().numpy()
+        if isinstance(spp, torch.Tensor):
+            spp = spp.cpu().numpy()
+
+        # 2) （可选增强你这儿就简化为不增强）缩放＋归一化
+        xyz = xyz * self.voxel_cfg.scale
+        xyz = xyz - xyz.min(axis=0)
+        # —— 新增：过滤所有 nan/inf 点 ——
+        mask_valid = np.isfinite(xyz).all(axis=1)
+        xyz = xyz[mask_valid]
+        rgb = rgb[mask_valid]
+        semantic_label = semantic_label[mask_valid]
+        instance_label = instance_label[mask_valid]
+        spp = spp[mask_valid]
+
+        # 3) 仅当总点数 > max_npoint 时才裁剪
+        num_pts = xyz.shape[0]
+        if num_pts > self.voxel_cfg.max_npoint:
+            xyz, valid_idxs = self.crop(xyz)
+            if valid_idxs.sum() == 0:
+                valid_idxs = np.ones(num_pts, dtype=bool)
+        else:
+            valid_idxs = np.ones(num_pts, dtype=bool)
+
+        # 4) 筛选
+        xyz = xyz[valid_idxs]
+        rgb = rgb[valid_idxs]
+        semantic_label = semantic_label[valid_idxs]
+        inst_lbl = instance_label[valid_idxs]
+        instance_label = self.getCroppedInstLabel(inst_lbl, np.ones_like(inst_lbl, dtype=bool))
+        spp = spp[valid_idxs]
+
+        # 5) xyz_middle 同裁剪后 xyz
+        xyz_middle = xyz.copy()
+
+        return xyz, xyz_middle, rgb, semantic_label, instance_label, spp
+
+
+
+
 
     def __getitem__(self, index):
         filename = self.filenames[index]
