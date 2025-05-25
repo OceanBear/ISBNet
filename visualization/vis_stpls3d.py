@@ -259,6 +259,7 @@ COLOR_MAP = {
     10: (148.0, 103.0, 189.0),
     11: (196.0, 156.0, 148.0),
     12: (23.0, 190.0, 207.0),
+    13: (178.0, 76.0, 76.0),    #modified
     14: (247.0, 182.0, 210.0),
     15: (66.0, 188.0, 102.0),
     16: (219.0, 219.0, 141.0),
@@ -290,6 +291,7 @@ COLOR_MAP = {
 SEMANTIC_IDX2NAME = {k: v for k, v in enumerate(CLASS_LABELS_STPLS3D)}
 
 def  get_pred_color(scene_name, pred_dir, data_root="dataset/stpls3d", split="val"):
+    print(f">> enter get_pred_color for {scene_name}", flush=True)
     """
     Load predicted instance masks for a given scene and convert them to RGB colors.
 
@@ -353,10 +355,12 @@ def  get_pred_color(scene_name, pred_dir, data_root="dataset/stpls3d", split="va
         color = COLOR_DETECTRON2[order % len(COLOR_DETECTRON2)]
         inst_label_pred_rgb[inst_label == inst_idx] = color
 
+    print(">> exit get_pred_color", flush=True)
     return inst_label_pred_rgb
 
 
 def main():
+    print(">> enter main()", flush=True)
     parser = argparse.ArgumentParser("STPLS3D-Vis")
 
     parser.add_argument("--data_root", type=str, default="dataset/stpls3d")
@@ -384,6 +388,7 @@ def main():
     xyz, rgb, semantic_label, instance_label = torch.load(
         f"{args.data_root}/{args.split}/{args.scene_name}_inst_nostuff.pth"
     )
+    print(">> loaded pth, num_points:", semantic_label.shape, flush=True)
     xyz = xyz.astype(np.float32)
     rgb = rgb.astype(np.float32)
 
@@ -401,7 +406,9 @@ def main():
     instance_label = instance_label[mask_valid]
 
     if "input" in vis_tasks:
+        print(">> before add input", flush=True)
         v.add_points(f"input", xyz, rgb, point_size=args.point_size)
+        print(">> after add input", flush=True)
 
     if "sem_gt" in vis_tasks:
         sem_label_rgb = np.zeros_like(rgb)
@@ -410,10 +417,12 @@ def main():
             if sem == -100:
                 continue
             remap_sem_id = sem + 1
-            color_ = COLOR_MAP[remap_sem_id]
+            color_ = COLOR_MAP.get(remap_sem_id, (1.0,1.0,1.0))
             sem_label_rgb[semantic_label == sem] = color_
 
+        print(">> before add sem_gt", flush=True)
         v.add_points(f"sem_gt", xyz, sem_label_rgb, point_size=args.point_size)
+        print(">> after add sem_gt", flush=True)
 
     if "inst_gt" in vis_tasks:
         inst_unique = np.unique(instance_label)
@@ -423,11 +432,14 @@ def main():
                 continue
             inst_label_rgb[instance_label == ind] = COLOR_DETECTRON2[ind % 68]
 
+        print(">> before add inst_gt", flush=True)
         v.add_points(f"inst_gt", xyz, inst_label_rgb, point_size=args.point_size)
+        print(">> after add inst_gt", flush=True)
 
     if "superpoint" in vis_tasks:
         # NOTE currently STPLS3D does not have superpoint
-        spp = np.arange((mask_valid.shape[0]), dtype=np.long)
+        #spp = np.arange((mask_valid.shape[0]), dtype=np.long)
+        spp = np.arange((mask_valid.shape[0]), dtype=np.int64)
         spp = spp[mask_valid]
         superpoint_rgb = np.zeros_like(rgb)
         unique_spp = np.unique(spp)
@@ -435,7 +447,9 @@ def main():
         for i, u_ in enumerate(unique_spp):
             superpoint_rgb[spp == u_] = COLOR_DETECTRON2[i % 68]
 
+        print(">> before add superpoint", flush=True)
         v.add_points(f"superpoint", xyz, superpoint_rgb, point_size=args.point_size)
+        print(">> after add superpoint", flush=True)
 
     if "inst_pred" in vis_tasks:
         pred_rgb = get_pred_color(
@@ -444,10 +458,13 @@ def main():
             args.data_root,
             args.split,
         )
+        print(">> before add inst_pred", flush=True)
         v.add_points(f"inst_pred", xyz, pred_rgb, point_size=args.point_size)
+        print(">> after add inst_pred", flush=True)
 
+    print(">> about to save scene, this may take a while …")
     v.save("visualization/pyviz3d")
-
+    print(">> save done")
 
 if __name__ == "__main__":
     main()
