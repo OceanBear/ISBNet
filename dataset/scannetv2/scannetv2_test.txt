@@ -98,3 +98,5 @@ scene0803_00
 scene0804_00
 scene0805_00
 scene0806_00
+scene0807_00
+scene0808_00

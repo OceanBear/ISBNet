@@ -9,9 +9,9 @@ model:
   with_coords: True
   ignore_label: -100
   voxel_scale: 50
-  use_spp_pool: True  # was True
+  use_spp_pool: True
   filter_bg_thresh: 0.1
-  iterative_sampling: True # was True
+  iterative_sampling: True
   instance_head_cfg:
     num_dyco_layer: 3
     dec_dim: 128
@@ -40,29 +40,29 @@ data:
     repeat: 4
     voxel_cfg:
       scale: 50
-      spatial_shape: [64, 256]
-      max_npoint: 150000
+      spatial_shape: [128, 512]
+      max_npoint: 250000
       min_npoint: 5000
   test:
     type: 'scannetv2'
     data_root: 'dataset/scannetv2'
-    prefix: 'val'
+    prefix: 'test'
     suffix: '_inst_nostuff.pth'
     training: False
     voxel_cfg:
       scale: 50
-      spatial_shape: [64, 256]
-      max_npoint: 300000
+      spatial_shape: [128, 512]
+      max_npoint: 2000000
       min_npoint: 5000
 
 
 dataloader:
   train:
     batch_size: 4
-    num_workers: 4
+    num_workers: 0
   test:
     batch_size: 1
-    num_workers: 1
+    num_workers: 0
 
 optimizer:
   type: 'AdamW'
@@ -81,7 +81,6 @@ fp16: False
 epochs: 120
 step_epoch: 50
 save_freq: 4
-pretrain: 'work_dirs/scannetv2/isbnet_backbone_scannetv2/default/pretrain_scannetv2_val.pth'
+pretrain: 'work_dirs/scannetv2/isbnet_backbone_scannetv2/pretrain_backbone/best.pth'
 work_dir: ''
-
 # best weight: pretrains/best_baseline.pth

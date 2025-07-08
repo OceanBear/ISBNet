@@ -27,7 +27,7 @@ model:
     type_nms: 'matrix'
     topk: 100
 
-  fixed_modules: []
+  fixed_modules: ['input_conv', 'unet', 'output_layer', 'semantic_linear', 'offset_linear', 'offset_vertices_linear', 'box_conf_linear']
 
 data:
   train:
@@ -39,26 +39,36 @@ data:
     repeat: 4
     voxel_cfg:
       scale: 50
-      spatial_shape: [128, 512]
-      max_npoint: 250000
+      spatial_shape: [64, 256]
+      max_npoint: 150000
       min_npoint: 5000
   test:
     type: 'scannetv2'
     data_root: 'dataset/scannetv2'
-    prefix: 'val'
+    prefix: 'test'
     suffix: '_inst_nostuff.pth'
     training: False
     voxel_cfg:
       scale: 50
-      spatial_shape: [128, 512]
-      max_npoint: 250000
+      spatial_shape: [64, 256]
+      max_npoint: 300000
       min_npoint: 5000
+
+  pipeline:
+      type: LoadPointsFromFile
+      coord_type: 'DEPTH'
+      shift_height: True
+      use_color: False
+      type: NormalizePointsColor
+      type: DefaultFormatBundle3D
+      type: Collect3D
+      keys: ['points']
 
 
 dataloader:
   train:
-    batch_size: 16
-    num_workers: 16
+    batch_size: 4
+    num_workers: 4
   test:
     batch_size: 1
     num_workers: 1
@@ -80,5 +90,5 @@ fp16: True
 epochs: 100
 step_epoch: 40
 save_freq: 4
-pretrain: ''
+pretrain: 'work_dirs/scannetv2/isbnet_backbone_scannetv2/default/pretrain_scannetv2_val.pth'
 work_dir: ''

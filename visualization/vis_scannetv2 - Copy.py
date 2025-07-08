@@ -344,7 +344,22 @@ def get_pred_color(scene_name, mask_valid, dir):
         assert osp.isfile(mask_path), mask_path
         if float(masks[i][2]) < 0.1:
             continue
-
+        """
+                # Determine whether this mask is already for the filtered (valid) points
+                if raw_mask.shape[0] == mask_valid.sum():
+                    # The mask matches the number of valid points; use it directly
+                    mask = raw_mask
+                elif raw_mask.shape[0] == mask_valid.shape[0]:
+                    # The mask covers all points (including invalid ones); apply the valid‐point filter
+                    mask = raw_mask[mask_valid]
+                else:
+                    # Neither size matches—something is wrong with the mask file
+                    raise ValueError(
+                        f"Mask length {raw_mask.shape[0]} does not match "
+                        f"either the total points ({mask_valid.shape[0]}) or "
+                        f"the valid points ({mask_valid.sum()})."
+                    )
+        """
         mask = np.loadtxt(mask_path).astype(np.int32)
         mask = mask[mask_valid]
 
@@ -382,7 +397,7 @@ def main():
     v = viz.Visualizer()
 
     if args.task == 'all':
-        vis_tasks = ['input', 'sem_gt', 'inst_gt', 'superpoint' 'inst_pred']
+        vis_tasks = ['input', 'sem_gt', 'inst_gt', 'superpoint' 'inst_pred', 'superpoint']
     else:
         vis_tasks = [args.task]
 

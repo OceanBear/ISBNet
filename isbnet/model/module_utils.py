@@ -15,7 +15,7 @@ class SharedMLP(nn.Sequential):
         activation=nn.ReLU(inplace=True),
         preact: bool = False,
         first: bool = False,
-        name: str = ""
+        name: str = ""   
     ):
         super().__init__()
 
